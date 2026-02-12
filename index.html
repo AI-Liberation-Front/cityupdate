@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CityUpdate Designer Search Center</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+    .tab { border:1px solid #ddd; padding:10px 14px; border-radius:10px; background:#fff; cursor:pointer; }
+    .tab.active { background:#f48021; color:#fff; border-color:#f48021; }
+    .panel { display:none; border:1px solid #eee; border-radius:12px; padding:16px; }
+    .panel.active { display:block; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap:14px; }
+    .card { border:1px solid #eee; border-radius:10px; padding:12px; }
+    .row { margin:10px 0; }
+    .row label { margin-right:12px; }
+    .status { margin-top:10px; font-size:14px; color:#444; }
+    .launch-controls { background:#fff7f0; border:1px solid #ffd3b0; border-radius:10px; padding:10px; margin: 8px 0 14px; }
+    button.search { background:#f48021; color:#fff; border:0; padding:11px 16px; border-radius:8px; cursor:pointer; }
+    ul { list-style:none; padding:0; margin:0; }
+    li { margin:6px 0; }
+  </style>
+</head>
+<body>
+  <h1>CityUpdate Designer Search Center</h1>
+  <p>Opens searches in multiple browser tabs (Edge-compatible). For best results, allow pop-ups for this page.</p>
+
+  <div class="tabs">
+    <button class="tab active" data-target="product">Product Price Search</button>
+    <button class="tab" data-target="stock">Stock Media Search</button>
+    <button class="tab" data-target="research">Design Research</button>
+    <button class="tab" data-target="global">Global Search</button>
+  </div>
+
+  <div class="launch-controls">
+    <strong>Parallel tab settings</strong>
+    <div class="row">
+      <label>Tabs per burst <input id="batchSize" type="number" min="1" max="20" value="6" /></label>
+      <label>Burst delay (ms) <input id="delayMs" type="number" min="0" max="2000" value="220" /></label>
+    </div>
+    <small>This improves reliability in Edge by opening tabs in bursts to avoid popup blocking when many resources are selected.</small>
+  </div>
+
+  <section id="product" class="panel active">
+    <h2>Product Price Search</h2>
+    <input id="productQuery" type="text" placeholder="e.g. Sony FX3" style="width:100%;padding:10px" />
+    <div class="grid row" id="productPlatforms"></div>
+    <button class="search" onclick="performProductSearch()">Search selected product resources</button>
+    <div id="productStatus" class="status"></div>
+  </section>
+
+  <section id="stock" class="panel">
+    <h2>Stock Media Search</h2>
+    <input id="stockQuery" type="text" placeholder="e.g. dramatic city skyline" style="width:100%;padding:10px" />
+    <div class="row">
+      <label><input type="radio" name="mediaType" value="photo" checked />Photos</label>
+      <label><input type="radio" name="mediaType" value="illustration" />Illustrations</label>
+      <label><input type="radio" name="mediaType" value="video" />Videos</label>
+    </div>
+    <button class="search" onclick="searchStockMedia()">Search all stock media resources</button>
+    <div id="stockStatus" class="status"></div>
+  </section>
+
+  <section id="research" class="panel">
+    <h2>Design Research</h2>
+    <input id="researchQuery" type="text" placeholder="Optional extra terms" style="width:100%;padding:10px" />
+    <div class="row">
+      <label><input type="radio" name="searchMode" value="images" checked />Image Search</label>
+      <label><input type="radio" name="searchMode" value="web" />Web Search</label>
+      <label><input type="radio" name="searchMode" value="pdf" />PDF Search</label>
+    </div>
+    <div class="row">
+      <label><input id="excludeTemplates" type="checkbox" checked />Exclude templates/stock</label>
+      <label><input id="recentOnly" type="checkbox" />Past 2 years only</label>
+    </div>
+    <div class="row">
+      <label>Type
+        <select id="designType">
+          <option value="brochure">Brochures</option><option value="flyer">Flyers</option>
+          <option value="advert">Adverts</option><option value="exhibition">Exhibition Booths</option>
+          <option value="banner-ad">Banner Ads</option><option value="microsite">Microsites</option>
+          <option value="landing-page">Landing Pages</option><option value="annual-report">Annual Reports</option>
+          <option value="packaging">Packaging</option><option value="catalog">Product Catalogs</option>
+        </select>
+      </label>
+    </div>
+    <div class="card">
+      <strong>Companies</strong>
+      <div class="grid row" id="companies"></div>
+    </div>
+    <button class="search" onclick="performResearchSearch()">Search selected companies</button>
+    <div id="researchStatus" class="status"></div>
+  </section>
+
+  <section id="global" class="panel">
+    <h2>Global Search</h2>
+    <input id="globalQuery" type="text" placeholder="Any query" style="width:100%;padding:10px" />
+    <div class="row">
+      <label><input type="radio" name="searchType" value="general" checked />General</label>
+      <label><input type="radio" name="searchType" value="images" />Images</label>
+      <label><input type="radio" name="searchType" value="products" />Products</label>
+    </div>
+    <button class="search" onclick="searchGlobal()">Search all global engines</button>
+    <div id="globalStatus" class="status"></div>
+  </section>
+
+<script>
+const PRODUCT_PLATFORMS = {
+  idealo:'https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=QUERY', amazon:'https://www.amazon.de/s?k=QUERY', aliexpress:'https://www.aliexpress.com/wholesale?SearchText=QUERY', bhphotovideo:'https://www.bhphotovideo.com/c/search?q=QUERY', adorama:'https://www.adorama.com/l/?searchinfo=QUERY', ebay:'https://www.ebay.de/sch/i.html?_nkw=QUERY', kleinanzeigen:'https://www.kleinanzeigen.de/s-QUERY/k0', troostwijk:'https://www.troostwijkauctions.com/de/search/?q=QUERY', mpb:'https://www.mpb.com/en-eu/search?q=QUERY', googlede:'https://www.google.de/search?q=QUERY+kaufen+price', googleus:'https://www.google.com/search?gl=us&q=QUERY+buy+price', pricespy:'https://pricespy.co.uk/search?search=QUERY', pricerunner:'https://www.pricerunner.com/results?q=QUERY&suggestionsActive=true&sort=lowest_price', leistenschneider:'https://www.foto-leistenschneider.de/search?search=QUERY', calumet:'https://www.calumetphoto.de/suchergebnis/?q=QUERY'
+};
+
+const STOCK_URLS = {
+  shutterstock:{photo:q=>`https://www.shutterstock.com/search/${q}?image_type=photo`,illustration:q=>`https://www.shutterstock.com/search/${q}?image_type=illustration`,video:q=>`https://www.shutterstock.com/video/search/${q}`},
+  unsplash:{photo:q=>`https://unsplash.com/s/photos/${q}`,illustration:q=>`https://unsplash.com/s/photos/${q}`,video:q=>`https://unsplash.com/s/photos/${q}`},
+  pexels:{photo:q=>`https://www.pexels.com/search/${q}/`,illustration:q=>`https://www.pexels.com/search/${q}/`,video:q=>`https://www.pexels.com/search/videos/${q}/`},
+  depositphotos:{photo:q=>`https://depositphotos.com/stock-photos/${q}.html`,illustration:q=>`https://depositphotos.com/vector-images/${q}.html`,video:q=>`https://depositphotos.com/stock-videos/${q}.html`},
+  envato:{photo:q=>`https://elements.envato.com/photos/search?term=${q}`,illustration:q=>`https://elements.envato.com/graphics/search?term=${q}`,video:q=>`https://elements.envato.com/video/search?term=${q}`},
+  adobestock:{photo:q=>`https://stock.adobe.com/search?k=${q}&mediatype=photo`,illustration:q=>`https://stock.adobe.com/search?k=${q}&mediatype=illustration`,video:q=>`https://stock.adobe.com/search?k=${q}&mediatype=video`},
+  istock:{photo:q=>`https://www.istockphoto.com/search/2/image?phrase=${q}`,illustration:q=>`https://www.istockphoto.com/search/2/image?mediatype=illustration&phrase=${q}`,video:q=>`https://www.istockphoto.com/search/2/film?phrase=${q}`},
+  alamy:{photo:q=>`https://www.alamy.com/stock-photo/${q}.html`,illustration:q=>`https://www.alamy.com/stock-photo/${q}.html?qt=illustration`,video:q=>`https://www.alamy.com/stock-video/${q}.html`},
+  pixabay:{photo:q=>`https://pixabay.com/images/search/${q}/`,illustration:q=>`https://pixabay.com/illustrations/search/${q}/`,video:q=>`https://pixabay.com/videos/search/${q}/`},
+  rf123:{photo:q=>`https://www.123rf.com/stock-photo/${q}.html`,illustration:q=>`https://www.123rf.com/stock-photo/${q}.html?oriSearch=illustration`,video:q=>`https://www.123rf.com/stock-footage/${q}.html`}
+};
+
+const GLOBAL_ENGINES = {
+  google_us:{general:q=>`https://www.google.com/search?gl=us&q=${q}`,images:q=>`https://www.google.com/search?gl=us&tbm=isch&q=${q}`,products:q=>`https://www.google.com/search?gl=us&tbm=shop&q=${q}`},
+  google_local:{general:q=>`https://www.google.com/search?q=${q}`,images:q=>`https://www.google.com/search?tbm=isch&q=${q}`,products:q=>`https://www.google.com/search?tbm=shop&q=${q}`},
+  bing:{general:q=>`https://www.bing.com/search?q=${q}`,images:q=>`https://www.bing.com/images/search?q=${q}`,products:q=>`https://www.bing.com/shop?q=${q}`},
+  baidu:{general:q=>`https://www.baidu.com/s?wd=${q}`,images:q=>`https://image.baidu.com/search/index?tn=baiduimage&word=${q}`,products:q=>`https://www.baidu.com/s?wd=${q}%20购买`},
+  yandex:{general:q=>`https://yandex.com/search/?text=${q}`,images:q=>`https://yandex.com/images/search?text=${q}`,products:q=>`https://yandex.com/search/?text=${q}%20buy`},
+  naver:{general:q=>`https://search.naver.com/search.naver?query=${q}`,images:q=>`https://search.naver.com/search.naver?where=image&query=${q}`,products:q=>`https://search.shopping.naver.com/search/all?query=${q}`},
+  qwant:{general:q=>`https://www.qwant.com/?q=${q}`,images:q=>`https://www.qwant.com/?q=${q}&t=images`,products:q=>`https://www.qwant.com/?q=${q}%20buy&t=web`},
+  ecosia:{general:q=>`https://www.ecosia.org/search?q=${q}`,images:q=>`https://www.ecosia.org/images?q=${q}`,products:q=>`https://www.ecosia.org/search?q=${q}%20buy`},
+  swisscows:{general:q=>`https://swisscows.com/web?query=${q}`,images:q=>`https://swisscows.com/image?query=${q}`,products:q=>`https://swisscows.com/web?query=${q}%20shop`},
+  mojeek:{general:q=>`https://www.mojeek.com/search?q=${q}`,images:q=>`https://www.mojeek.com/search?q=${q}+image`,products:q=>`https://www.mojeek.com/search?q=${q}+buy`},
+  seznam:{general:q=>`https://search.seznam.cz/?q=${q}`,images:q=>`https://www.seznam.cz/hledani/obrazky?q=${q}`,products:q=>`https://www.zbozi.cz/hledani/?q=${q}`},
+  perplexity:{general:q=>`https://www.perplexity.ai/search?q=${q}`,images:q=>`https://www.perplexity.ai/search?q=${q}+images`,products:q=>`https://www.perplexity.ai/search?q=${q}+buy+best+products`},
+  you:{general:q=>`https://you.com/search?q=${q}`,images:q=>`https://you.com/search?q=${q}&tbm=isch`,products:q=>`https://you.com/search?q=${q}+buy`}
+};
+
+const companies = ["Apple","Samsung","Prada","DJI","Dyson","Nike","Braun","Bang & Olufsen","Louis Vuitton","Audi","Tesla","Sonos","Herman Miller","IKEA","Porsche","Muji","Alessi","Leica","Moleskine","Kenzo","Walmart","Amazon","CVS Health","UnitedHealth Group","Exxon Mobil","Berkshire Hathaway","Alphabet (Google)","McKesson","Microsoft","JPMorgan Chase","Verizon Communications","Costco","Chevron","Cardinal Health","Ford Motor","General Motors","AT&T","AmerisourceBergen","Citigroup","Bank of America","Comcast","Phillips 66","Valero Energy","Dell Technologies","Target","Kroger","Marathon Petroleum","Home Depot","IBM","Wells Fargo"];
+
+const designTypes = {brochure:'brochure OR pamphlet OR "product catalog" OR "sales brochure"',flyer:'flyer OR leaflet OR handout OR "information sheet"',advert:'advertisement OR "print ad" OR "magazine ad"',exhibition:'"exhibition booth" OR "trade show booth" OR "expo display"', 'banner-ad':'"banner ad" OR "display ad" OR "web banner"', microsite:'microsite OR "campaign site" OR "promotional website"', 'landing-page':'"landing page" OR "campaign page" OR "product page"', 'annual-report':'"annual report" OR "investor report" OR "corporate report"', packaging:'packaging OR "product packaging" OR "package design"', catalog:'catalog OR "product catalog" OR "merchandise catalog"'};
+
+function getLaunchConfig(){
+  return {
+    batchSize: Math.max(1, Math.min(20, Number(document.getElementById('batchSize').value) || 6)),
+    delayMs: Math.max(0, Math.min(2000, Number(document.getElementById('delayMs').value) || 220))
+  };
+}
+
+function openUrlsInTabs(urls, statusElId){
+  const {batchSize, delayMs} = getLaunchConfig();
+  const statusEl = document.getElementById(statusElId);
+  let opened = 0, blocked = 0;
+  let i = 0;
+
+  function openOne(url){
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (win) opened++; else blocked++;
+  }
+
+  const timer = setInterval(() => {
+    const slice = urls.slice(i, i + batchSize);
+    slice.forEach(openOne);
+    i += batchSize;
+    if (statusEl) statusEl.textContent = `Opening tabs... ${Math.min(i, urls.length)}/${urls.length}`;
+    if (i >= urls.length) {
+      clearInterval(timer);
+      if (statusEl) statusEl.textContent = `Done. Opened ${opened}/${urls.length} tabs${blocked ? ` (${blocked} blocked: allow pop-ups in Edge for full parallel search)` : ''}.`;
+    }
+  }, delayMs);
+}
+
+function performProductSearch(){
+  const q = document.getElementById('productQuery').value.trim();
+  if (!q) return alert('Enter a product query.');
+  const e = encodeURIComponent(q);
+  const urls = [...document.querySelectorAll('input[name="productPlatform"]:checked')].map(c => PRODUCT_PLATFORMS[c.value].replace('QUERY', e));
+  if (!urls.length) return alert('Select at least one product platform.');
+  openUrlsInTabs(urls, 'productStatus');
+}
+
+function searchStockMedia(){
+  const qRaw = document.getElementById('stockQuery').value.trim();
+  if (!qRaw) return alert('Enter a stock media query.');
+  const t = document.querySelector('input[name="mediaType"]:checked').value;
+  const q = encodeURIComponent(qRaw);
+  const urls = Object.values(STOCK_URLS).map(map => map[t](q));
+  openUrlsInTabs(urls, 'stockStatus');
+}
+
+function searchGlobal(){
+  const qRaw = document.getElementById('globalQuery').value.trim();
+  if (!qRaw) return alert('Enter a global query.');
+  const t = document.querySelector('input[name="searchType"]:checked').value;
+  const q = encodeURIComponent(qRaw);
+  const urls = Object.values(GLOBAL_ENGINES).map(map => map[t](q));
+  openUrlsInTabs(urls, 'globalStatus');
+}
+
+function performResearchSearch(){
+  const type = document.getElementById('designType').value;
+  const base = designTypes[type];
+  const extra = document.getElementById('researchQuery').value.trim();
+  const mode = document.querySelector('input[name="searchMode"]:checked').value;
+  const exclude = document.getElementById('excludeTemplates').checked ? ' -template -stock -shutterstock -istockphoto -adobe -mockup -canva' : '';
+  const recent = document.getElementById('recentOnly').checked;
+  const selected = [...document.querySelectorAll('input[name="company"]:checked')].map(x => x.value);
+  if (!selected.length) return alert('Select at least one company.');
+
+  const urls = selected.map(company => {
+    let query = `"${company}" ${base}${extra ? ` ${extra}` : ''}${exclude}`;
+    let url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    if (mode === 'images') url += '&tbm=isch';
+    if (mode === 'pdf') url = `https://www.google.com/search?q=${encodeURIComponent(query + ' filetype:pdf')}`;
+    if (recent) url += '&tbs=qdr:y2';
+    return url;
+  });
+
+  openUrlsInTabs(urls, 'researchStatus');
+}
+
+function init(){
+  document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.target).classList.add('active');
+  }));
+
+  const p = document.getElementById('productPlatforms');
+  p.innerHTML = Object.keys(PRODUCT_PLATFORMS).map(k => `<label><input type="checkbox" name="productPlatform" value="${k}" checked /> ${k}</label>`).join('');
+
+  const c = document.getElementById('companies');
+  c.innerHTML = companies.map(name => `<label><input type="checkbox" name="company" value="${name}" checked /> ${name}</label>`).join('');
+}
+
+init();
+</script>
+</body>
+</html>
